@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>El cuarto de Clawd</title>
+<meta name="description" content="Música lofi que se compone al momento: toca los objetos del cuarto de Clawd y la canción cambia.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #fbf4ea;
+    --papel-velo: rgba(251, 244, 234, 0.86);
+    --tinta: #3a2a24;
+    --tinta-suave: #7a6458;
+    --acento: #d97757;
+    --acento-hondo: #b5573a;
+    --linea: rgba(58, 42, 36, 0.12);
+    --sombra: 0 6px 24px rgba(40, 24, 16, 0.18);
+    --fondo: #2b2233;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --papel: #2a2230;
+      --papel-velo: rgba(36, 28, 42, 0.84);
+      --tinta: #f6ebe0;
+      --tinta-suave: #c8b4a6;
+      --linea: rgba(246, 235, 224, 0.14);
+      --sombra: 0 6px 24px rgba(0, 0, 0, 0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --papel: #2a2230;
+    --papel-velo: rgba(36, 28, 42, 0.84);
+    --tinta: #f6ebe0;
+    --tinta-suave: #c8b4a6;
+    --linea: rgba(246, 235, 224, 0.14);
+    --sombra: 0 6px 24px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: 'Nunito', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+  #cuarto { position: fixed; inset: 0; touch-action: manipulation; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .hud { position: fixed; left: 0; right: 0; display: flex; gap: 10px; padding: 16px; pointer-events: none; z-index: 2; }
+  .hud > * { pointer-events: auto; }
+  .arriba { top: 0; padding-top: max(16px, env(safe-area-inset-top)); }
+  .abajo { bottom: 0; justify-content: center; align-items: center; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .vidrio {
+    background: var(--papel-velo);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--linea);
+    box-shadow: var(--sombra);
+  }
+
+  .sonando { border-radius: 18px; padding: 12px 16px 12px; min-width: 0; max-width: min(360px, 100%); }
+  .sonando .etiqueta { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--acento-hondo); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sonando .etiqueta { color: var(--acento); } }
+  :root[data-theme="dark"] .sonando .etiqueta { color: var(--acento); }
+  .sonando h1 { margin: 2px 0 0; font-size: 19px; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+  .sonando p { margin: 2px 0 8px; font-size: 13px; font-weight: 700; color: var(--tinta-suave); }
+  .barra { height: 4px; border-radius: 4px; background: var(--linea); overflow: hidden; }
+  .barra i { display: block; height: 100%; width: 0; background: var(--acento); border-radius: 4px; transition: width 0.5s linear; }
+
+  .botonera { display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px; }
+  /* la interfaz vive en el cuarto (la tele, el control remoto, la cámara y la
+     grabadora): la tarjeta queda para lectores de pantalla y la botonera solo aparece con el teclado */
+  .solo-lectores { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .abajo.oculta { opacity: 0; transform: translateY(12px); transition: opacity 0.2s, transform 0.2s; }
+  .abajo.oculta > * { pointer-events: none; }
+  .abajo.oculta:focus-within { opacity: 1; transform: none; }
+  .abajo.oculta:focus-within > * { pointer-events: auto; }
+  .botonera button {
+    border: 0; background: transparent; border-radius: 999px;
+    min-width: 44px; height: 44px; padding: 0 12px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-weight: 800; font-size: 14px;
+  }
+  .botonera button:hover { background: var(--linea); }
+  .botonera button:focus-visible, .fila:focus-visible, .entrar:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
+  .botonera svg { width: 20px; height: 20px; }
+
+  .chip {
+    position: fixed; z-index: 3; pointer-events: none;
+    transform: translate(-50%, -100%);
+    border-radius: 14px; padding: 7px 12px;
+    width: max-content; max-width: min(380px, calc(100vw - 16px)); text-wrap: balance;
+    font-size: 14px; font-weight: 800;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .chip small { display: block; font-size: 11px; font-weight: 700; color: var(--tinta-suave); }
+  .chip[hidden] { display: block; opacity: 0; transform: translate(-50%, -80%); }
+
+  .extra { margin: 6px 0 0; font-size: 13px; font-weight: 800; color: var(--tinta); }
+  .extra[hidden] { display: none; }
+  .profe {
+    position: fixed; top: max(16px, env(safe-area-inset-top)); right: 16px; z-index: 2;
+    width: min(320px, calc(100vw - 32px)); border-radius: 18px; padding: 12px 16px;
+  }
+  .profe[hidden] { display: none; }
+  .profe .etiqueta { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--acento-hondo); }
+  .progresion { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
+  .progresion span { font-size: 14px; font-weight: 800; padding: 3px 8px; border-radius: 8px; background: var(--linea); color: var(--tinta-suave); transition: background 0.2s, color 0.2s; }
+  .progresion span.activo { background: var(--acento); color: #fff8f0; }
+  .profe p { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.45; }
+  #dedicar textarea {
+    width: 100%; border-radius: 14px; border: 1px solid var(--linea); padding: 10px 12px;
+    font: inherit; font-size: 15px; font-weight: 600; color: var(--tinta); background: transparent; resize: none;
+  }
+  #dedicar textarea:focus-visible { outline: 3px solid var(--acento); outline-offset: 1px; }
+  .cuenta { align-self: flex-end; font-size: 12px; font-weight: 700; color: var(--tinta-suave); }
+  .secundario { border: 0; background: transparent; color: var(--tinta-suave); font-weight: 800; height: 40px; }
+  .recibido { margin: 4px 0 6px; padding: 10px 12px; border-radius: 14px; background: rgba(217, 119, 87, 0.12); font-size: 15px; font-weight: 700; color: var(--tinta); line-height: 1.45; }
+  .recibido[hidden] { display: none; }
+  #album { width: min(480px, calc(100vw - 32px)); }
+  .detalle { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 16px; background: var(--linea); margin-bottom: 10px; }
+  .detalle canvas { width: 96px; height: 96px; image-rendering: pixelated; flex: none; }
+  .detalle b { display: block; font-size: 17px; font-weight: 900; }
+  .detalle span { display: block; font-size: 14px; font-weight: 600; color: var(--tinta-suave); line-height: 1.45; margin-top: 2px; }
+  .detalle.bloqueado canvas { opacity: 0.6; }
+  .album { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .album button {
+    display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px;
+    border: 2px solid transparent; border-radius: 14px; background: transparent; padding: 8px 4px;
+    font-size: 11px; font-weight: 800; color: var(--tinta-suave); line-height: 1.2;
+  }
+  .album button:hover { background: var(--linea); }
+  .album button[aria-pressed="true"] { border-color: var(--acento); color: var(--tinta); }
+  .album canvas { width: 64px; height: 64px; image-rendering: pixelated; }
+  .album button.bloqueado canvas { opacity: 0.55; }
+  .album button.nuevo { position: relative; }
+  .album button.nuevo::after {
+    content: ''; position: absolute; top: 6px; right: 12px; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--acento); box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.25); animation: latido 1.5s ease-in-out infinite;
+  }
+  @keyframes latido { 50% { transform: scale(1.35); } }
+  .pista {
+    position: fixed; left: 50%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 74px);
+    transform: translateX(-50%); z-index: 2; pointer-events: none;
+    border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 800;
+    transition: opacity 0.6s;
+  }
+  .pista.fuera { opacity: 0; }
+
+  dialog {
+    border: 0; padding: 0; border-radius: 22px; width: min(440px, calc(100vw - 32px));
+    max-height: min(640px, calc(100dvh - 48px));
+    background: var(--papel); color: var(--tinta); box-shadow: var(--sombra);
+  }
+  dialog { overflow: auto; overscroll-behavior: contain; }
+  dialog::backdrop { background: rgba(20, 12, 10, 0.4); }
+  .hoja { padding: 20px 18px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .hoja h2 { margin: 0 0 2px; font-size: 20px; font-weight: 900; }
+  .hoja > p { margin: 0 0 10px; font-size: 14px; color: var(--tinta-suave); font-weight: 600; }
+  .fila {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px;
+    text-align: left; width: 100%; border: 1px solid var(--linea); background: transparent;
+    border-radius: 14px; padding: 9px 12px; min-height: 48px;
+  }
+  .fila:hover { border-color: var(--acento); }
+  .fila b { font-size: 15px; font-weight: 800; }
+  .fila span { font-size: 13px; color: var(--tinta-suave); font-weight: 600; grid-column: 1; }
+  .fila em { grid-row: 1 / span 2; grid-column: 2; font-style: normal; font-size: 13px; font-weight: 800; color: var(--acento-hondo); }
+  .fila.nueva b::after { content: ' ·'; color: var(--acento); }
+  .pie { font-size: 12px; color: var(--tinta-suave); font-weight: 600; margin: 10px 2px 0; line-height: 1.45; }
+  .cerrar { margin-top: 10px; border: 0; border-radius: 999px; background: var(--tinta); color: var(--papel); font-weight: 800; height: 44px; }
+
+  #portada {
+    position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 24px;
+    background: radial-gradient(120% 90% at 50% 20%, rgba(255, 196, 150, 0.22), transparent 60%), rgba(30, 22, 34, 0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transition: opacity 0.7s;
+  }
+  #portada.fuera { opacity: 0; pointer-events: none; }
+  .tarjeta { text-align: center; border-radius: 26px; padding: 28px 24px 22px; width: min(400px, 100%); }
+  #retrato { height: 60px; width: auto; image-rendering: pixelated; display: block; margin: 0 auto 14px; }
+  .tarjeta h2 { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: -0.01em; }
+  .tarjeta p { margin: 8px 0 18px; font-size: 16px; font-weight: 600; color: var(--tinta-suave); line-height: 1.45; }
+  .entrar {
+    border: 0; border-radius: 999px; height: 54px; padding: 0 30px; min-width: 210px;
+    background: var(--acento); color: #fff8f0; font-size: 17px; font-weight: 900;
+    box-shadow: 0 6px 0 var(--acento-hondo); transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .entrar:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--acento-hondo); }
+  .entrar:disabled { opacity: 0.6; cursor: progress; }
+  .tarjeta small { display: block; margin-top: 16px; font-size: 12px; font-weight: 600; color: var(--tinta-suave); line-height: 1.5; }
+
+  @media (max-width: 760px) {
+    .profe { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 70px); right: 50%; transform: translateX(50%); }
+  }
+  @media (max-width: 520px) {
+    .sonando { padding: 10px 14px; }
+    .sonando h1 { font-size: 17px; }
+    .botonera button.texto span { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chip, .pista, #portada, .barra i { transition: none; }
+    .album button.nuevo::after { animation: none; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="cuarto" aria-label="El cuarto de Clawd: cada objeto cambia la música"></div>
+
+<header class="hud arriba">
+  <div class="sonando vidrio solo-lectores" aria-live="polite">
+    <span class="etiqueta" id="quien">Clawd está tocando</span>
+    <h1 id="titulo">Afinando…</h1>
+    <p id="detalle">&nbsp;</p>
+    <div class="barra"><i id="progreso"></i></div>
+    <p class="extra" id="pomo" hidden></p>
+    <p class="extra" id="dedicatoria" hidden></p>
+  </div>
+  <aside class="profe vidrio" id="profeCard" hidden aria-live="polite">
+    <span class="etiqueta">Modo profe</span>
+    <div class="progresion" id="progresion"></div>
+    <p id="explicacion"></p>
+  </aside>
+</header>
+
+<nav class="hud abajo oculta" aria-label="Controles">
+  <div class="botonera vidrio">
+    <button id="pausa" aria-label="Pausar">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>
+    </button>
+    <button id="compartir" class="texto" aria-label="Compartir esta canción">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+      <span>Compartir</span>
+    </button>
+    <button id="ayuda" aria-label="Qué hace cada objeto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+    </button>
+  </div>
+</nav>
+
+<div id="chip" class="chip vidrio" hidden></div>
+<div id="pista" class="pista vidrio fuera">Toca los objetos del cuarto</div>
+
+<dialog id="hoja">
+  <div class="hoja">
+    <h2>Qué hace cada cosa</h2>
+    <p>Cada objeto del cuarto cambia una parte de la música. También puedes cambiarlos desde aquí.</p>
+    <div id="filas" style="display:flex;flex-direction:column;gap:6px"></div>
+    <p class="pie" id="secretos"></p>
+    <p class="pie" id="stickersLista"></p>
+    <button class="secundario" id="verAlbum">Ver el álbum de stickers</button>
+    <p class="pie">Con un teclado de computador puedes tocar encima de la canción: las teclas de la A a la Ñ y de la Q a la P. Nunca desafinan.</p>
+    <p class="pie">La música se compone en el momento con reglas de armonía y muestras de instrumentos reales: nunca suena dos veces igual, salvo que compartas el enlace. <span id="creditosHoja">Clawd es la mascota de Claude Code; esto es un homenaje no oficial</span>, hecho por Luis Lastra.</p>
+    <button class="cerrar" id="cerrar">Volver al cuarto</button>
+  </div>
+</dialog>
+
+<dialog id="album">
+  <div class="hoja">
+    <h2>Álbum de stickers</h2>
+    <p id="albumResumen"></p>
+    <div class="detalle" id="albumDetalle" aria-live="polite">
+      <canvas id="albumGrande" width="32" height="32" aria-hidden="true"></canvas>
+      <div><b id="albumNombre"></b><span id="albumPorque"></span></div>
+    </div>
+    <div class="album" id="albumGrid"></div>
+    <button class="cerrar" id="cerrarAlbum">Volver al cuarto</button>
+  </div>
+</dialog>
+
+<dialog id="dedicar">
+  <form class="hoja" method="dialog" id="formDedicar">
+    <h2>Compartir esta canción</h2>
+    <p>Quien abra el enlace oirá esta misma canción. Si quieres, deja un mensaje: Clawd lo escribirá en su monitor.</p>
+    <textarea id="textoDedicar" maxlength="80" rows="3" placeholder="Por ejemplo: para que estudies tranquila, mucha suerte mañana"></textarea>
+    <small class="cuenta" id="cuentaDedicar">0 / 80</small>
+    <button class="cerrar" id="copiarDedicar" value="copiar">Copiar enlace</button>
+    <button class="secundario" id="postal" type="button">Descargar una postal del cuarto</button>
+    <button class="secundario" value="cancelar" formnovalidate>Volver al cuarto</button>
+  </form>
+</dialog>
+
+<section id="portada">
+  <div class="tarjeta vidrio">
+    <canvas id="retrato" aria-hidden="true"></canvas>
+    <h2 id="nombreCuarto">El cuarto de Clawd</h2>
+    <p class="recibido" id="recibido" hidden></p>
+    <p id="lema">Música hecha al momento: lofi, barroca, clásica o de película. Toca los objetos del cuarto y la canción cambia.</p>
+    <button class="entrar" id="entrar" disabled>Afinando instrumentos…</button>
+    <small>Mejor con audífonos.<br><span id="creditos">Homenaje no oficial a Clawd, la mascota de Claude Code.</span> Por Luis Lastra.</small>
+  </div>
+</section>
+
+<script type="module" src="app-05e9a070.js"></script>
+</body>
+</html>
